@@ -7,6 +7,10 @@ import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * a generic server class that accepts client connections and processes them using a strategy.
+ * the server listens on a specific port and handles requests using a thread pool.
+ */
 public class Server {
     private final int port;
     private final int listeningIntervalMS;
@@ -15,20 +19,33 @@ public class Server {
 
     private ExecutorService threadPool;
 
+    /**
+     * constructs a new server instance.
+     *
+     * @param port the port to listen on
+     * @param listeningIntervalMS the timeout (in milliseconds) for accepting new clients
+     * @param strategy the strategy used to handle each client
+     */
     public Server(int port, int listeningIntervalMS, IServerStrategy strategy) {
         this.port = port;
         this.listeningIntervalMS = listeningIntervalMS;
         this.strategy = strategy;
 
-        // get thread pool size from the config file
+        // initialize thread pool with size from config
         int poolSize = Configurations.getInstance().getThreadPoolSize();
         this.threadPool = Executors.newFixedThreadPool(poolSize);
     }
 
+    /**
+     * starts the server in a new thread.
+     */
     public void start() {
         new Thread(this::runServer).start();
     }
 
+    /**
+     * main server loop: accepts new clients and delegates them to the thread pool.
+     */
     private void runServer() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             serverSocket.setSoTimeout(listeningIntervalMS);
@@ -39,20 +56,23 @@ public class Server {
                     Socket clientSocket = serverSocket.accept();
                     System.out.println("client connected: " + clientSocket);
 
-                    // handle each client using a thread from the pool
                     threadPool.submit(() -> handleClient(clientSocket));
-
                 } catch (SocketTimeoutException e) {
-                    // timeout allows checking if the server should stop
+                    // check stop flag periodically
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            threadPool.shutdown(); // shut down all threads gracefully
+            threadPool.shutdown(); // release all resources
         }
     }
 
+    /**
+     * handles a single client using the configured strategy.
+     *
+     * @param clientSocket the client socket
+     */
     private void handleClient(Socket clientSocket) {
         try {
             strategy.serverStrategy(clientSocket.getInputStream(), clientSocket.getOutputStream());
@@ -62,6 +82,9 @@ public class Server {
         }
     }
 
+    /**
+     * signals the server to stop accepting new clients.
+     */
     public void stop() {
         stop = true;
     }
